@@ -1,85 +1,150 @@
 import streamlit as st
-import joblib
 import numpy as np
+import joblib
 
-# -------------------------------
+# ------------------------------------------------
 # LOAD SCALER & MODEL
-# -------------------------------
+# ------------------------------------------------
 try:
-    scaler = joblib.load("scaler.pkl")     # Scaler trained on pollutant_min, pollutant_max
-    model = joblib.load("model.pkl")       # Your ML model (regression/classification)
-except FileNotFoundError:
-    st.error("❌ scaler.pkl or model.pkl not found. Please place them in the same folder as app.py")
+    scaler = joblib.load("scaler.pkl")
+    model = joblib.load("model.pkl")
+except:
+    st.error("❌ scaler.pkl or model.pkl missing! Place them in the same folder as app.py")
     st.stop()
 
-# -------------------------------
-# STREAMLIT APP TITLE
-# -------------------------------
-st.title("🌫️ Air Quality Prediction App")
+# ------------------------------------------------
+# PAGE CONFIGURATION
+# ------------------------------------------------
+st.set_page_config(
+    page_title="Air Quality Predictor",
+    page_icon="🌫️",
+    layout="wide",
+)
 
-st.write("Enter pollutant values below and hit Predict to estimate pollution level.")
+# ------------------------------------------------
+# CUSTOM CSS FOR MODERN UI
+# ------------------------------------------------
+st.markdown("""
+<style>
+.result-card {
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: bold;
+    color: white;
+}
+.low { background-color: #2ecc71; }
+.moderate { background-color: #f39c12; }
+.high { background-color: #e74c3c; }
+</style>
+""", unsafe_allow_html=True)
+
+# ------------------------------------------------
+# TITLE
+# ------------------------------------------------
+st.title("🌫️ Air Quality Prediction Dashboard")
+st.write("Enter pollutant values below to estimate pollution level.")
 
 st.divider()
 
-# -------------------------------
-# USER INPUTS
-# -------------------------------
+# ------------------------------------------------
+# SIDEBAR INPUTS
+# ------------------------------------------------
+st.sidebar.header("📌 Input Values")
 
-pollutant_min = st.number_input(
-    "Enter pollutant MIN value",
-    min_value=0.0,
-    max_value=1000.0,
-    value=50.0
+pollutant_min = st.sidebar.number_input(
+    "Pollutant MIN Value", 0.0, 2000.0, 40.0
 )
 
-pollutant_max = st.number_input(
-    "Enter pollutant MAX value",
-    min_value=0.0,
-    max_value=1000.0,
-    value=120.0
+pollutant_max = st.sidebar.number_input(
+    "Pollutant MAX Value", 0.0, 2000.0, 120.0
 )
+
+predict_btn = st.sidebar.button("🔮 Predict")
+
+# ------------------------------------------------
+# MAIN DASHBOARD METRICS
+# ------------------------------------------------
+col1, col2 = st.columns(2)
+
+with col1:
+    st.subheader("📊 Pollutant Overview")
+    st.metric("Pollutant MIN", pollutant_min)
+    st.metric("Pollutant MAX", pollutant_max)
+
+with col2:
+    st.subheader("📉 Range Spread")
+    st.metric("Difference", pollutant_max - pollutant_min)
 
 st.divider()
 
-# -------------------------------
-# PREDICT BUTTON
-# -------------------------------
-predict_btn = st.button("Predict")
-
+# ------------------------------------------------
+# PREDICTION SECTION
+# ------------------------------------------------
 if predict_btn:
-    # Create array in correct order used in training
-    X = [pollutant_min, pollutant_max]
 
-    # Convert to numpy array and reshape for model
-    X_array = np.array(X).reshape(1, -1)
+    # 🎈 BALLOONS + TOAST CELEBRATION
+    st.balloons()
+    st.toast("Prediction Completed! 🎉")
 
-    # Scale using loaded scaler
-    X_scaled = scaler.transform(X_array)
+    # Prepare input
+    X = np.array([[pollutant_min, pollutant_max]])
+    X_scaled = scaler.transform(X)
 
-    # Predict using loaded model
+    # Predict
     prediction = model.predict(X_scaled)[0]
 
-    # -----------------------
-    # INTERPRETATION
-    # -----------------------
-
-    # If your model is regression → predicting pollutant_avg
+    # Determine category (if regression output)
     try:
-        predicted_value = float(prediction)
+        value = float(prediction)
 
-        if predicted_value <= 50:
+        if value <= 50:
             category = "Low"
-        elif predicted_value <= 100:
+            css_class = "low"
+        elif value <= 100:
             category = "Moderate"
+            css_class = "moderate"
         else:
             category = "High"
+            css_class = "high"
 
-        st.success(f"🌫️ Predicted Pollutant Average: **{predicted_value:.2f}**")
-        st.info(f"📌 Pollution Level: **{category}**")
+        st.subheader("🎯 Prediction Result")
 
-    # If your model is classification → predicting category directly
+        st.markdown(f"""
+        <div class="result-card {css_class}">
+            Predicted Pollution Level: {category}<br>
+            Predicted Avg Value: {value:.2f}
+        </div>
+        """, unsafe_allow_html=True)
+
     except:
-        st.success(f"📌 Predicted Pollution Category: **{prediction}**")
+        category = prediction
+        css_class = "high"
+        if category == "Low":
+            css_class = "low"
+        elif category == "Moderate":
+            css_class = "moderate"
+
+        st.subheader("🎯 Prediction Result")
+        st.markdown(f"""
+        <div class="result-card {css_class}">
+            Predicted Category: {category}
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Gauge progress bar
+    st.subheader("📍 Pollution Gauge")
+
+    gauge_val = 0
+    if category == "Low":
+        gauge_val = 20
+    elif category == "Moderate":
+        gauge_val = 50
+    else:
+        gauge_val = 90
+
+    st.progress(gauge_val / 100)
 
 else:
-    st.info("Enter values and click Predict to see the results.")
+    st.info("Enter values and click Predict for results.")
